@@ -254,6 +254,7 @@ void MmpCore::RefreshMonitors()
 		HMONITOR hmon = native ? native->handle() : nullptr;
 		MONITORINFOEXW mi = {};
 		mi.cbSize = sizeof(mi);
+		m.hmon = hmon;
 		if (hmon && GetMonitorInfoW(hmon, (LPMONITORINFO)&mi)) {
 			m.rect = QRect(mi.rcMonitor.left, mi.rcMonitor.top, mi.rcMonitor.right - mi.rcMonitor.left,
 				       mi.rcMonitor.bottom - mi.rcMonitor.top);
@@ -561,7 +562,7 @@ void MmpCore::Reconcile(bool recovery)
 		list.erase(std::remove_if(list.begin(), list.end(), [](const QPointer<ProjectorWindow> &w) { return !w; }),
 			   list.end());
 
-		std::vector<QScreen *> desired;
+		std::vector<const MonitorInfo *> desired;
 		obs_source_t *src = nullptr;
 		bool valid = row.enabled && row.wanted && row.w > 0 && row.h > 0;
 		if (valid) {
@@ -574,44 +575,49 @@ void MmpCore::Reconcile(bool recovery)
 				valid = false;
 		}
 		if (valid) {
-			for (auto *m : MatchRow(row))
-				desired.push_back(m->screen);
+			desired = MatchRow(row);
 			if (recovery && !row.autoProject) {
 				// 未勾自動投放：只保留原本還在的投影，不自動補回
-				std::vector<QScreen *> keep;
-				for (QScreen *s : desired)
+				std::vector<const MonitorInfo *> keep;
+				for (auto *m : desired)
 					for (auto &w : list)
-						if (w && w->TargetScreen() == s)
-							keep.push_back(s);
+						if (w && w->TargetScreen() == m->screen)
+							keep.push_back(m);
 				desired = keep;
 			}
 		}
 
-		// 移除不需要的、放錯位置的、來源不同的
+		auto findDesired = [&](QScreen *s) -> const MonitorInfo * {
+			for (auto *m : desired)
+				if (m->screen == s)
+					return m;
+			return nullptr;
+		};
+
+		// 移除不需要的、來源不同的；位置不對的就搬回去（不重建，避免搶焦點）
 		for (auto &w : list) {
 			if (!w)
 				continue;
-			bool keep = std::find(desired.begin(), desired.end(), w->TargetScreen()) != desired.end() &&
-				    w->Source() == src && !w->IsMisplaced();
-			if (!keep) {
+			const MonitorInfo *m = findDesired(w->TargetScreen());
+			if (!m || w->Source() != src) {
 				delete w.data();
 				w = nullptr;
+				continue;
 			}
+			w->Place(*m);
 		}
 		list.erase(std::remove_if(list.begin(), list.end(), [](const QPointer<ProjectorWindow> &w) { return !w; }),
 			   list.end());
 
 		// 建立缺少的
-		for (QScreen *s : desired) {
+		for (auto *m : desired) {
 			bool exists = false;
 			for (auto &w : list)
-				if (w->TargetScreen() == s)
+				if (w->TargetScreen() == m->screen)
 					exists = true;
 			if (exists)
 				continue;
-			auto *w = new ProjectorWindow(row.id, s, src);
-			connect(w, &ProjectorWindow::Misplaced, this, &MmpCore::OnScreensChanged);
-			list.push_back(w);
+			list.push_back(new ProjectorWindow(row.id, *m, src));
 		}
 		obs_source_release(src);
 	}
@@ -620,10 +626,9 @@ void MmpCore::Reconcile(bool recovery)
 
 void MmpCore::ImmediateGuard()
 {
-	// 螢幕一有變動，先把跑到錯誤螢幕（例如主螢幕）上的投影藏起來
-	QScreen *mainScreen = nullptr;
-	if (const MonitorInfo *m = MainMonitor())
-		mainScreen = m->screen;
+	// 螢幕一有變動，先把目標螢幕已消失、或跑到主螢幕上的投影藏起來
+	const MonitorInfo *mainMon = MainMonitor();
+	void *mainH = mainMon ? mainMon->hmon : nullptr;
 	const auto screens = QGuiApplication::screens();
 	for (auto &kv : windows) {
 		for (auto &w : kv.second) {
@@ -631,9 +636,8 @@ void MmpCore::ImmediateGuard()
 				continue;
 			QScreen *t = w->TargetScreen();
 			bool gone = !t || !screens.contains(t);
-			bool onMain = w->windowHandle() && mainScreen && w->windowHandle()->screen() == mainScreen &&
-				      t != mainScreen;
-			if (gone || onMain || w->IsMisplaced())
+			bool onMain = mainH && w->CurrentMonitor() == mainH && w->TargetMonitor() != mainH;
+			if (gone || onMain)
 				w->hide();
 		}
 	}

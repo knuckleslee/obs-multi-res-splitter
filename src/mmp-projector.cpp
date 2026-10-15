@@ -1,17 +1,26 @@
 #include "mmp-projector.hpp"
 #include "mmp-core.hpp"
 
+#include <QTimer>
 #include <QWindow>
 #include <algorithm>
 
-ProjectorWindow::ProjectorWindow(int rowId_, QScreen *screen, obs_source_t *src)
-	: MmpDisplay(nullptr, Qt::Window | Qt::FramelessWindowHint | Qt::Tool),
+#ifdef _WIN32
+#include <Windows.h>
+#endif
+
+ProjectorWindow::ProjectorWindow(int rowId_, const MonitorInfo &m, obs_source_t *src)
+	: MmpDisplay(nullptr, Qt::Window | Qt::FramelessWindowHint | Qt::Tool | Qt::WindowDoesNotAcceptFocus),
 	  rowId(rowId_),
-	  target(screen),
+	  target(m.screen),
+	  hmon(m.hmon),
+	  rect(m.rect),
 	  source(obs_source_get_ref(src))
 {
 	setAttribute(Qt::WA_DeleteOnClose, false);
 	setAttribute(Qt::WA_QuitOnClose, false);
+	setAttribute(Qt::WA_ShowWithoutActivating);
+	setFocusPolicy(Qt::NoFocus);
 	setCursor(Qt::BlankCursor);
 	setWindowTitle(T("多螢幕投影"));
 
@@ -19,17 +28,20 @@ ProjectorWindow::ProjectorWindow(int rowId_, QScreen *screen, obs_source_t *src)
 		obs_source_inc_showing(source);
 
 	winId(); // 建立原生視窗
-	if (windowHandle()) {
-		windowHandle()->setScreen(screen);
-		connect(windowHandle(), &QWindow::screenChanged, this, [this](QScreen *s) {
-			if (s != target) {
-				hide();
-				emit Misplaced();
-			}
-		});
+#ifdef _WIN32
+	HWND hwnd = (HWND)winId();
+	LONG_PTR ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+	SetWindowLongPtrW(hwnd, GWL_EXSTYLE, ex | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW);
+#endif
+	if (target) {
+		if (windowHandle())
+			windowHandle()->setScreen(target);
+		setGeometry(target->geometry());
 	}
-	setGeometry(screen->geometry());
-	showFullScreen();
+	show();
+	ApplyNativePlacement();
+	// Qt 可能在螢幕縮放比例切換後再調整一次大小，稍後再校正
+	QTimer::singleShot(300, this, [this]() { ApplyNativePlacement(); });
 }
 
 ProjectorWindow::~ProjectorWindow()
@@ -42,13 +54,41 @@ ProjectorWindow::~ProjectorWindow()
 	}
 }
 
-bool ProjectorWindow::IsMisplaced() const
+void ProjectorWindow::ApplyNativePlacement()
 {
-	if (!target)
-		return true;
-	if (windowHandle() && windowHandle()->screen() != target)
-		return true;
-	return false;
+#ifdef _WIN32
+	if (rect.isEmpty())
+		return;
+	HWND hwnd = (HWND)winId();
+	RECT cur;
+	GetWindowRect(hwnd, &cur);
+	if (cur.left == rect.x() && cur.top == rect.y() && cur.right - cur.left == rect.width() &&
+	    cur.bottom - cur.top == rect.height() && IsWindowVisible(hwnd))
+		return;
+	SetWindowPos(hwnd, HWND_TOP, rect.x(), rect.y(), rect.width(), rect.height(),
+		     SWP_NOACTIVATE | SWP_SHOWWINDOW | SWP_NOOWNERZORDER);
+#endif
+}
+
+void ProjectorWindow::Place(const MonitorInfo &m)
+{
+	target = m.screen;
+	hmon = m.hmon;
+	rect = m.rect;
+	if (isHidden()) {
+		setAttribute(Qt::WA_ShowWithoutActivating);
+		show();
+	}
+	ApplyNativePlacement();
+}
+
+void *ProjectorWindow::CurrentMonitor() const
+{
+#ifdef _WIN32
+	return MonitorFromWindow((HWND)winId(), MONITOR_DEFAULTTONULL);
+#else
+	return nullptr;
+#endif
 }
 
 void ProjectorWindow::Render(uint32_t cx, uint32_t cy)

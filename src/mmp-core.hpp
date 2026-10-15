@@ -41,6 +41,7 @@ struct OutputRow {
 
 struct MonitorInfo {
 	QScreen *screen = nullptr;
+	void *hmon = nullptr; // HMONITOR
 	int w = 0;
 	int h = 0;
 	QRect rect;       // 桌面座標（實體像素）
