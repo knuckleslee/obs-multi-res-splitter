@@ -116,12 +116,37 @@ MmpCore::MmpCore()
 	hkClose = obs_hotkey_register_frontend("mmp_close_all", "多螢幕投影：關閉全部投影", HotkeyCloseAll, this);
 	hkReproject = obs_hotkey_register_frontend("mmp_reproject", "多螢幕投影：重新投放", HotkeyReproject, this);
 
+	// 場景在 OBS 裡改名時，跟著更新設定，不必重新選擇
+	signal_handler_connect(obs_get_signal_handler(), "source_rename", SourceRenamed, this);
+
 	Load();
 	RefreshMonitors();
 }
 
+void MmpCore::SourceRenamed(void *data, calldata_t *cd)
+{
+	auto *core = static_cast<MmpCore *>(data);
+	QString prev = QString::fromUtf8(calldata_string(cd, "prev_name"));
+	QString now = QString::fromUtf8(calldata_string(cd, "new_name"));
+	QMetaObject::invokeMethod(
+		core,
+		[core, prev, now]() {
+			bool changed = false;
+			for (auto &r : core->rows) {
+				if (r.mode == OutputMode::Scene && r.scene == prev) {
+					r.scene = now;
+					changed = true;
+				}
+			}
+			if (changed)
+				core->ConfigEdited(true);
+		},
+		Qt::QueuedConnection);
+}
+
 MmpCore::~MmpCore()
 {
+	signal_handler_disconnect(obs_get_signal_handler(), "source_rename", SourceRenamed, this);
 	Shutdown();
 	if (hkClose != OBS_INVALID_HOTKEY_ID)
 		obs_hotkey_unregister(hkClose);

@@ -126,6 +126,7 @@ private:
 	obs_data_t *SaveToData(bool withHotkeys);
 	QString MonitorSignature() const;
 
+	static void SourceRenamed(void *data, calldata_t *cd);
 	static void HotkeyCloseAll(void *data, obs_hotkey_id, obs_hotkey_t *, bool pressed);
 	static void HotkeyReproject(void *data, obs_hotkey_id, obs_hotkey_t *, bool pressed);
 
