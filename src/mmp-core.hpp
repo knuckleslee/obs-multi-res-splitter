@@ -124,6 +124,7 @@ private:
 	void UpdateCaptureTarget();
 	void ConnectScreen(QScreen *s);
 	void LoadFromData(obs_data_t *data, bool withHotkeys);
+	void LoadHotkeys(obs_data_t *data);
 	obs_data_t *SaveToData(bool withHotkeys);
 	QString MonitorSignature() const;
 
