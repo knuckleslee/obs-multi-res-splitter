@@ -80,7 +80,7 @@ MmpDock::MmpDock(QWidget *parent) : QWidget(parent)
 	connect(closeAll, &QPushButton::clicked, this, []() { MmpCore::Get()->CloseAll(); });
 	connect(identify, &QPushButton::clicked, this, []() { MmpCore::Get()->IdentifyAll(); });
 	connect(exportBtn, &QPushButton::clicked, this, [this]() {
-		QString path = QFileDialog::getSaveFileName(this, T("匯出設定"), "multi-monitor-projector.json",
+		QString path = QFileDialog::getSaveFileName(this, T("匯出設定"), "obs-multi-res-splitter.json",
 							    T("設定檔 (*.json)"));
 		if (path.isEmpty())
 			return;

@@ -1,4 +1,4 @@
-# Multi Monitor Projector（多螢幕投影）
+# obs-multi-res-splitter（多螢幕投影）
 
 OBS Studio 外掛。抓取主螢幕畫面一次，依每台副螢幕的解析度自動裁切並全螢幕投放；副螢幕或主螢幕斷線重接後會自動恢復。
 
@@ -6,10 +6,10 @@ OBS Studio 外掛。抓取主螢幕畫面一次，依每台副螢幕的解析度
 
 ## 安裝
 
-1. 到本專案 GitHub 頁面的 **Actions** 分頁，點最新一次成功的 `Push` 執行紀錄，在最下方 **Artifacts** 下載 `multi-monitor-projector-…-windows-x64` 壓縮檔。
-2. 關閉 OBS，把壓縮檔裡的 `multi-monitor-projector` 資料夾解壓到：
+1. 到本專案 GitHub 頁面的 **Actions** 分頁，點最新一次成功的 `Push` 執行紀錄，在最下方 **Artifacts** 下載 `obs-multi-res-splitter-…-windows-x64` 壓縮檔。
+2. 關閉 OBS，把壓縮檔裡的 `obs-multi-res-splitter` 資料夾解壓到：
    `C:\ProgramData\obs-studio\plugins\`
-   （結構應為 `C:\ProgramData\obs-studio\plugins\multi-monitor-projector\bin\64bit\multi-monitor-projector.dll`）
+   （結構應為 `C:\ProgramData\obs-studio\plugins\obs-multi-res-splitter\bin\64bit\obs-multi-res-splitter.dll`）
 3. 開啟 OBS，選單「停駐視窗」→ 勾選「多螢幕投影」。
 
 ## 使用

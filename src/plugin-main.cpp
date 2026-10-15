@@ -1,5 +1,5 @@
 /*
-Multi Monitor Projector for OBS
+obs-multi-res-splitter
 以解析度辨識螢幕，將主螢幕畫面裁切投放到多台副螢幕，並在螢幕斷線重接後自動恢復。
 
 This program is free software; you can redistribute it and/or modify
@@ -58,7 +58,7 @@ bool obs_module_load(void)
 
 	auto *main = static_cast<QMainWindow *>(obs_frontend_get_main_window());
 	g_dock = new MmpDock(main);
-	obs_frontend_add_dock_by_id("multi_monitor_projector", "多螢幕投影", g_dock);
+	obs_frontend_add_dock_by_id("obs_multi_res_splitter", "多螢幕投影", g_dock);
 
 	obs_frontend_add_event_callback(frontend_event, nullptr);
 	obs_log(LOG_INFO, "plugin loaded successfully (version %s)", PLUGIN_VERSION);

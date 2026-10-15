@@ -33,11 +33,11 @@
     },
     "platformConfig": {
         "macos": {
-            "bundleId": "com.dark.multi-monitor-projector"
+            "bundleId": "com.dark.obs-multi-res-splitter"
         }
     },
-    "name": "multi-monitor-projector",
-    "displayName": "Multi Monitor Projector",
+    "name": "obs-multi-res-splitter",
+    "displayName": "Multi-Res Splitter",
     "version": "0.1.0",
     "author": "Dark",
     "website": "https://github.com",
