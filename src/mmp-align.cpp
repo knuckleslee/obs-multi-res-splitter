@@ -156,7 +156,7 @@ AlignDialog::AlignDialog(int rowId_, QWidget *parent) : QDialog(parent), rowId(r
 	origAy = row ? row->ay : 1.0;
 
 	setWindowTitle(row ? T("對齊：%1（%2×%3）").arg(row->name).arg(row->w).arg(row->h) : T("對齊"));
-	resize(900, 600);
+	resize(900, 480);
 
 	auto *lay = new QVBoxLayout(this);
 	preview = new AlignPreview(this);
@@ -187,9 +187,25 @@ AlignDialog::AlignDialog(int rowId_, QWidget *parent) : QDialog(parent), rowId(r
 	posLay->addWidget(new QLabel("Y"), 2, 0, Qt::AlignRight);
 	spinY = mkSpin(posBox, 5);
 	posLay->addWidget(spinY, 2, 1);
-	posLay->setColumnMinimumWidth(2, 40);
+	posLay->setColumnMinimumWidth(2, 32);
 
-	posLay->addWidget(new QLabel(T("<b>對齊</b>")), 0, 3);
+	// 裁剪（放在位置與對齊之間）
+	posLay->addWidget(new QLabel(T("<b>裁剪</b>")), 0, 3, 1, 4);
+	spinL = mkSpin(posBox, 0);
+	spinR = mkSpin(posBox, 1);
+	spinT = mkSpin(posBox, 2);
+	spinB = mkSpin(posBox, 3);
+	posLay->addWidget(new QLabel(T("左")), 1, 3, Qt::AlignRight);
+	posLay->addWidget(spinL, 1, 4);
+	posLay->addWidget(new QLabel(T("右")), 1, 5, Qt::AlignRight);
+	posLay->addWidget(spinR, 1, 6);
+	posLay->addWidget(new QLabel(T("上")), 2, 3, Qt::AlignRight);
+	posLay->addWidget(spinT, 2, 4);
+	posLay->addWidget(new QLabel(T("下")), 2, 5, Qt::AlignRight);
+	posLay->addWidget(spinB, 2, 6);
+	posLay->setColumnMinimumWidth(7, 32);
+
+	posLay->addWidget(new QLabel(T("<b>對齊</b>")), 0, 8);
 	auto *gridHost = new QWidget(posBox);
 	auto *grid = new QGridLayout(gridHost);
 	grid->setContentsMargins(0, 0, 0, 0);
@@ -211,29 +227,9 @@ AlignDialog::AlignDialog(int rowId_, QWidget *parent) : QDialog(parent), rowId(r
 			gridGroup->addButton(b, r * 3 + c);
 		}
 	}
-	posLay->addWidget(gridHost, 1, 3, 2, 1, Qt::AlignTop | Qt::AlignLeft);
-	posLay->setColumnStretch(4, 1);
+	posLay->addWidget(gridHost, 1, 8, 2, 1, Qt::AlignTop | Qt::AlignLeft);
+	posLay->setColumnStretch(9, 1);
 	lay->addWidget(posBox);
-
-	// 裁剪
-	auto *cropBox = new QGroupBox(this);
-	auto *cropLay = new QGridLayout(cropBox);
-	cropLay->addWidget(new QLabel(T("<b>裁剪</b>")), 0, 0, 1, 2);
-	spinL = mkSpin(cropBox, 0);
-	spinR = mkSpin(cropBox, 1);
-	spinT = mkSpin(cropBox, 2);
-	spinB = mkSpin(cropBox, 3);
-	cropLay->addWidget(new QLabel(T("左")), 1, 0, Qt::AlignRight);
-	cropLay->addWidget(spinL, 1, 1);
-	cropLay->addWidget(new QLabel(T("右")), 1, 2, Qt::AlignRight);
-	cropLay->addWidget(spinR, 1, 3);
-	cropLay->addWidget(new QLabel(T("上")), 2, 0, Qt::AlignRight);
-	cropLay->addWidget(spinT, 2, 1);
-	cropLay->addWidget(new QLabel(T("下")), 2, 2, Qt::AlignRight);
-	cropLay->addWidget(spinB, 2, 3);
-	cropLay->setColumnMinimumWidth(2, 40);
-	cropLay->setColumnStretch(4, 1);
-	lay->addWidget(cropBox);
 
 	// 按鈕
 	auto *btnLay = new QHBoxLayout();
