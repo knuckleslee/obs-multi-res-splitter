@@ -715,7 +715,6 @@ obs_data_t *MmpCore::SaveToData(bool withHotkeys)
 	obs_data_array_release(arr);
 
 	if (withHotkeys) {
-		obs_data_set_bool(d, "hotkey_defaults_v1", true);
 		obs_data_array_t *a = obs_hotkey_save(hkClose);
 		obs_data_set_array(d, "hotkey_close_all", a);
 		obs_data_array_release(a);
@@ -757,38 +756,18 @@ void MmpCore::LoadFromData(obs_data_t *d, bool withHotkeys)
 	}
 	obs_data_array_release(arr);
 
-	if (withHotkeys)
-		LoadHotkeys(d);
-}
-
-// 載入快速鍵；設定檔裡從未存過的才套用預設值（使用者清空的不會被蓋回）
-static void load_hotkey(obs_hotkey_id id, obs_data_t *d, const char *field, const char *defKey)
-{
-	if (id == OBS_INVALID_HOTKEY_ID)
-		return;
-	obs_data_array_t *a = nullptr;
-	// hotkey_defaults_v1：舊版設定檔沒有這個標記，代表還沒套用過預設值
-	if (d && obs_data_get_bool(d, "hotkey_defaults_v1") && obs_data_has_user_value(d, field)) {
-		a = obs_data_get_array(d, field);
-	} else {
-		a = obs_data_array_create();
-		obs_data_t *k = obs_data_create();
-		obs_data_set_string(k, "key", defKey);
-		obs_data_set_bool(k, "control", true);
-		obs_data_set_bool(k, "alt", true);
-		obs_data_array_push_back(a, k);
-		obs_data_release(k);
+	if (withHotkeys) {
+		obs_data_array_t *a = obs_data_get_array(d, "hotkey_close_all");
+		if (a) {
+			obs_hotkey_load(hkClose, a);
+			obs_data_array_release(a);
+		}
+		a = obs_data_get_array(d, "hotkey_reproject");
+		if (a) {
+			obs_hotkey_load(hkReproject, a);
+			obs_data_array_release(a);
+		}
 	}
-	if (a) {
-		obs_hotkey_load(id, a);
-		obs_data_array_release(a);
-	}
-}
-
-void MmpCore::LoadHotkeys(obs_data_t *d)
-{
-	load_hotkey(hkReproject, d, "hotkey_reproject", "OBS_KEY_P");
-	load_hotkey(hkClose, d, "hotkey_close_all", "OBS_KEY_O");
 }
 
 static QString config_file()
@@ -808,7 +787,6 @@ void MmpCore::Load()
 {
 	obs_data_t *d = obs_data_create_from_json_file_safe(config_file().toUtf8().constData(), "bak");
 	if (!d) {
-		LoadHotkeys(nullptr);
 		// 預設一列
 		OutputRow r;
 		r.id = nextId++;
