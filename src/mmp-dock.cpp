@@ -191,8 +191,8 @@ void MmpDock::Rebuild()
 	header(2, T("寬"));
 	header(3, T("高"));
 	header(5, T("模式"));
-	header(6, T("對齊／場景"));
-	header(7, T("套用相同解析度"));
+	header(6, T("對齊"));
+	header(7, T("套用到相同解析度"));
 	header(8, T("自動投放"));
 	header(9, T("狀態"));
 	r++;
@@ -256,41 +256,29 @@ void MmpDock::Rebuild()
 			c->ConfigEdited();
 		});
 
+		// 模式：第一項為「來源」（主螢幕畫面），其後為各場景
 		rw.mode = new QComboBox(gridHost);
-		rw.mode->addItem(T("來源"));
-		rw.mode->addItem(T("場景"));
-		rw.mode->setCurrentIndex(row.mode == OutputMode::Scene ? 1 : 0);
+		rw.mode->setMinimumWidth(110);
 		grid->addWidget(rw.mode, r, 5);
-		connect(rw.mode, &QComboBox::currentIndexChanged, this, [this, id](int idx) {
+		connect(rw.mode, &QComboBox::activated, this, [this, id](int) {
 			MmpCore *c = MmpCore::Get();
-			if (OutputRow *o = c->FindRow(id)) {
-				o->mode = idx == 1 ? OutputMode::Scene : OutputMode::Source;
-				UpdateRowVisibility(id);
-				c->ConfigEdited();
-			}
+			OutputRow *o = c->FindRow(id);
+			if (!o)
+				return;
+			QString sc = rowWidgets[id].mode->currentData().toString();
+			o->mode = sc.isEmpty() ? OutputMode::Source : OutputMode::Scene;
+			o->scene = sc;
+			UpdateRowVisibility(id);
+			c->ConfigEdited();
 		});
 
-		auto *cell = new QWidget(gridHost);
-		auto *cellLay = new QHBoxLayout(cell);
-		cellLay->setContentsMargins(0, 0, 0, 0);
-		rw.align = new QPushButton(T("對齊"), cell);
-		rw.scene = new QComboBox(cell);
-		rw.scene->setMinimumWidth(100);
-		cellLay->addWidget(rw.align);
-		cellLay->addWidget(rw.scene);
-		grid->addWidget(cell, r, 6);
+		rw.align = new QPushButton(T("對齊"), gridHost);
+		grid->addWidget(rw.align, r, 6);
 		connect(rw.align, &QPushButton::clicked, this, [this, id]() {
 			MmpCore *c = MmpCore::Get();
 			AlignDialog dlg(id, this);
 			if (dlg.exec() == QDialog::Accepted)
 				c->ConfigEdited();
-		});
-		connect(rw.scene, &QComboBox::activated, this, [this, id](int) {
-			MmpCore *c = MmpCore::Get();
-			if (OutputRow *o = c->FindRow(id)) {
-				o->scene = rowWidgets[id].scene->currentData().toString();
-				c->ConfigEdited();
-			}
 		});
 
 		auto *same = new QCheckBox(gridHost);
@@ -377,8 +365,8 @@ void MmpDock::UpdateRowVisibility(int rowId)
 	if (!o || it == rowWidgets.end())
 		return;
 	bool scene = o->mode == OutputMode::Scene;
-	it->second.align->setVisible(!scene);
-	it->second.scene->setVisible(scene);
+	it->second.align->setEnabled(!scene);
+	it->second.align->setToolTip(scene ? T("場景模式由場景本身決定畫面，不需要對齊") : QString());
 }
 
 void MmpDock::RefreshScenes()
@@ -393,17 +381,19 @@ void MmpDock::RefreshScenes()
 	MmpCore *core = MmpCore::Get();
 	for (auto &kv : rowWidgets) {
 		OutputRow *o = core->FindRow(kv.first);
-		QComboBox *cb = kv.second.scene;
+		QComboBox *cb = kv.second.mode;
 		if (!o || !cb)
 			continue;
 		QSignalBlocker block(cb);
 		cb->clear();
-		cb->addItem(T("（選擇場景）"), QString());
+		cb->addItem(T("來源"), QString());
+		if (!names.isEmpty())
+			cb->insertSeparator(cb->count());
 		for (auto &n : names)
-			cb->addItem(n, n);
-		int idx = cb->findData(o->scene);
-		if (idx < 0 && !o->scene.isEmpty()) {
-			cb->addItem(T("%1（不存在）").arg(o->scene), o->scene);
+			cb->addItem(T("場景：%1").arg(n), n);
+		int idx = o->mode == OutputMode::Scene ? cb->findData(o->scene) : 0;
+		if (o->mode == OutputMode::Scene && idx < 0 && !o->scene.isEmpty()) {
+			cb->addItem(T("場景：%1（不存在）").arg(o->scene), o->scene);
 			idx = cb->count() - 1;
 		}
 		cb->setCurrentIndex(idx < 0 ? 0 : idx);

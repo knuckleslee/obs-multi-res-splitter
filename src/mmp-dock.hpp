@@ -23,7 +23,6 @@ private:
 		QSpinBox *w = nullptr;
 		QSpinBox *h = nullptr;
 		QComboBox *mode = nullptr;
-		QComboBox *scene = nullptr;
 		QPushButton *align = nullptr;
 		QLabel *status = nullptr;
 	};
