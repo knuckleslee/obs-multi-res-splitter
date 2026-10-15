@@ -87,7 +87,21 @@ runs:
           Configuration = '${{ inputs.config }}'
         }
 
-        .github/scripts/Build-Windows.ps1 @BuildArgs
+        .github/scripts/Build-Windows.ps1 @BuildArgs *>&1 | Tee-Object -FilePath "${{ github.workspace }}/build-windows.log"
+
+    - name: Report Windows Build Errors
+      if: failure() && runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        $log = "${{ github.workspace }}/build-windows.log"
+        if (Test-Path $log) {
+          $lines = Get-Content $log | Select-String -Pattern 'error|CMake Error|warning C4(?:244|267)' -CaseSensitive:$false | Where-Object { $_ -notmatch 'warning C4' } | Select-Object -First 60 | ForEach-Object { $_.Line.Trim() }
+          if (-not $lines) { $lines = Get-Content $log | Select-Object -Last 40 }
+          $msg = ($lines -join "%0A") -replace '::', ' : '
+          Write-Output "::error title=Build log::$msg"
+          $tail = (Get-Content $log | Select-Object -Last 30) -join "%0A"
+          Write-Output "::error title=Build log tail::$tail"
+        }
 
     - name: Create Summary 📊
       if: contains(fromJSON('["Linux", "macOS"]'),runner.os)
