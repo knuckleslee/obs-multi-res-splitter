@@ -1,6 +1,7 @@
 #include "mmp-align.hpp"
 #include "mmp-core.hpp"
 
+#include <QButtonGroup>
 #include <QDialogButtonBox>
 #include <QFormLayout>
 #include <QGridLayout>
@@ -154,63 +155,97 @@ AlignDialog::AlignDialog(int rowId_, QWidget *parent) : QDialog(parent), rowId(r
 	origAx = row ? row->ax : 0.5;
 	origAy = row ? row->ay : 1.0;
 
-	setWindowTitle(T("對齊：%1").arg(row ? row->name : QString()));
-	resize(900, 560);
+	setWindowTitle(row ? T("對齊：%1（%2×%3）").arg(row->name).arg(row->w).arg(row->h) : T("對齊"));
+	resize(900, 600);
 
 	auto *lay = new QVBoxLayout(this);
-	info = new QLabel(this);
-	info->setWordWrap(true);
-	lay->addWidget(info);
-
 	preview = new AlignPreview(this);
 	lay->addWidget(preview, 1);
 
-	auto *bottom = new QHBoxLayout();
-	lay->addLayout(bottom);
+	info = new QLabel(this);
+	info->setWordWrap(true);
+	info->setVisible(false);
+	lay->addWidget(info);
 
-	// 九宮格
-	auto *gridBox = new QGroupBox(T("快速對齊"), this);
-	auto *grid = new QGridLayout(gridBox);
-	static const char *names[3][3] = {{"左上", "中上", "右上"}, {"左中", "置中", "右中"}, {"左下", "中下", "右下"}};
+	auto mkSpin = [&](QWidget *parentW, int which) {
+		auto *sp = new QSpinBox(parentW);
+		sp->setRange(0, 16384);
+		sp->setSuffix(" px");
+		sp->setKeyboardTracking(false);
+		sp->setMinimumWidth(110);
+		connect(sp, &QSpinBox::valueChanged, this, [this, which](int) { OnSpinEdited(which); });
+		return sp;
+	};
+
+	// 位置 + 對齊
+	auto *posBox = new QGroupBox(this);
+	auto *posLay = new QGridLayout(posBox);
+	posLay->addWidget(new QLabel(T("<b>位置</b>")), 0, 0, 1, 2);
+	posLay->addWidget(new QLabel("X"), 1, 0, Qt::AlignRight);
+	spinX = mkSpin(posBox, 4);
+	posLay->addWidget(spinX, 1, 1);
+	posLay->addWidget(new QLabel("Y"), 2, 0, Qt::AlignRight);
+	spinY = mkSpin(posBox, 5);
+	posLay->addWidget(spinY, 2, 1);
+	posLay->setColumnMinimumWidth(2, 40);
+
+	posLay->addWidget(new QLabel(T("<b>對齊</b>")), 0, 3);
+	auto *gridHost = new QWidget(posBox);
+	auto *grid = new QGridLayout(gridHost);
+	grid->setContentsMargins(0, 0, 0, 0);
+	grid->setSpacing(3);
+	gridGroup = new QButtonGroup(this);
+	gridGroup->setExclusive(false);
+	static const char *tips[3][3] = {{"左上", "中上", "右上"}, {"左中", "置中", "右中"}, {"左下", "中下", "右下"}};
 	for (int r = 0; r < 3; r++) {
 		for (int c = 0; c < 3; c++) {
-			auto *b = new QPushButton(T(names[r][c]), gridBox);
-			b->setMinimumWidth(56);
+			auto *b = new QPushButton(gridHost);
+			b->setCheckable(true);
+			b->setFixedSize(18, 18);
+			b->setToolTip(T(tips[r][c]));
+			b->setStyleSheet("QPushButton{border:1px solid palette(mid);border-radius:2px;background:palette(base);}"
+					 "QPushButton:checked{background:#378ADD;border-color:#185FA5;}");
 			double ax = c * 0.5, ay = r * 0.5;
 			connect(b, &QPushButton::clicked, this, [this, ax, ay]() { SetRatios(ax, ay); });
 			grid->addWidget(b, r, c);
+			gridGroup->addButton(b, r * 3 + c);
 		}
 	}
-	bottom->addWidget(gridBox);
+	posLay->addWidget(gridHost, 1, 3, 2, 1, Qt::AlignTop | Qt::AlignLeft);
+	posLay->setColumnStretch(4, 1);
+	lay->addWidget(posBox);
 
-	// 裁切數字
-	auto *cropBox = new QGroupBox(T("裁切（像素）"), this);
-	auto *form = new QGridLayout(cropBox);
-	auto mkSpin = [&](int which) {
-		auto *s = new QSpinBox(cropBox);
-		s->setRange(0, 16384);
-		s->setKeyboardTracking(false);
-		connect(s, &QSpinBox::valueChanged, this, [this, which](int) { OnSpinEdited(which); });
-		return s;
-	};
-	spinL = mkSpin(0);
-	spinR = mkSpin(1);
-	spinT = mkSpin(2);
-	spinB = mkSpin(3);
-	form->addWidget(new QLabel(T("上")), 0, 2, Qt::AlignRight);
-	form->addWidget(spinT, 0, 3);
-	form->addWidget(new QLabel(T("左")), 1, 0, Qt::AlignRight);
-	form->addWidget(spinL, 1, 1);
-	form->addWidget(new QLabel(T("右")), 1, 4, Qt::AlignRight);
-	form->addWidget(spinR, 1, 5);
-	form->addWidget(new QLabel(T("下")), 2, 2, Qt::AlignRight);
-	form->addWidget(spinB, 2, 3);
-	bottom->addWidget(cropBox, 1);
+	// 裁剪
+	auto *cropBox = new QGroupBox(this);
+	auto *cropLay = new QGridLayout(cropBox);
+	cropLay->addWidget(new QLabel(T("<b>裁剪</b>")), 0, 0, 1, 2);
+	spinL = mkSpin(cropBox, 0);
+	spinR = mkSpin(cropBox, 1);
+	spinT = mkSpin(cropBox, 2);
+	spinB = mkSpin(cropBox, 3);
+	cropLay->addWidget(new QLabel(T("左")), 1, 0, Qt::AlignRight);
+	cropLay->addWidget(spinL, 1, 1);
+	cropLay->addWidget(new QLabel(T("右")), 1, 2, Qt::AlignRight);
+	cropLay->addWidget(spinR, 1, 3);
+	cropLay->addWidget(new QLabel(T("上")), 2, 0, Qt::AlignRight);
+	cropLay->addWidget(spinT, 2, 1);
+	cropLay->addWidget(new QLabel(T("下")), 2, 2, Qt::AlignRight);
+	cropLay->addWidget(spinB, 2, 3);
+	cropLay->setColumnMinimumWidth(2, 40);
+	cropLay->setColumnStretch(4, 1);
+	lay->addWidget(cropBox);
 
+	// 按鈕
+	auto *btnLay = new QHBoxLayout();
+	auto *reset = new QPushButton(T("重設"), this);
+	connect(reset, &QPushButton::clicked, this, [this]() { SetRatios(0.5, 1.0); });
+	btnLay->addWidget(reset);
+	btnLay->addStretch();
 	auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
 	connect(buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);
 	connect(buttons, &QDialogButtonBox::rejected, this, &AlignDialog::reject);
-	lay->addWidget(buttons);
+	btnLay->addWidget(buttons);
+	lay->addLayout(btnLay);
 
 	connect(preview, &AlignPreview::Dragged, this, [this](double nx, double ny) {
 		double ax = (sw > rw) ? nx / (sw - rw) : 0.5;
@@ -233,6 +268,7 @@ void AlignDialog::UpdateFromRow()
 	oh = row->h;
 	if (sw <= 0 || sh <= 0 || ow <= 0 || oh <= 0) {
 		info->setText(T("請先設定主螢幕與這台螢幕的解析度。"));
+		info->setVisible(true);
 		return;
 	}
 	RegionF r = ComputeSourceRegion(sw, sh, ow, oh, row->ax, row->ay);
@@ -240,31 +276,24 @@ void AlignDialog::UpdateFromRow()
 	rh = r.h;
 	preview->SetFrame(sw, sh, r.x, r.y, r.w, r.h);
 
-	QString scaleText;
-	if (r.w < ow - 0.5 || r.h < oh - 0.5)
-		scaleText = T("，放大 %1 倍").arg(ow / r.w, 0, 'f', 2);
-	else
-		scaleText = T("，1:1 原尺寸");
-	info->setText(T("主螢幕 %1×%2 → 取樣 %3×%4 → 輸出 %5×%6%7。拖曳紅框、按快速對齊或輸入裁切數字調整位置，"
-			"實體螢幕會即時更新。")
-			      .arg(sw)
-			      .arg(sh)
-			      .arg(int(r.w))
-			      .arg(int(r.h))
-			      .arg(ow)
-			      .arg(oh)
-			      .arg(scaleText));
-
 	updating = true;
-	int maxX = int(sw - r.w), maxY = int(sh - r.h);
-	for (QSpinBox *s : {spinL, spinR})
-		s->setRange(0, std::max(0, maxX));
-	for (QSpinBox *s : {spinT, spinB})
-		s->setRange(0, std::max(0, maxY));
+	int maxX = std::max(0, int(sw - r.w)), maxY = std::max(0, int(sh - r.h));
+	for (QSpinBox *sp : {spinX, spinL, spinR})
+		sp->setRange(0, maxX);
+	for (QSpinBox *sp : {spinY, spinT, spinB})
+		sp->setRange(0, maxY);
+	spinX->setValue(int(r.x));
+	spinY->setValue(int(r.y));
 	spinL->setValue(int(r.x));
 	spinR->setValue(int(sw - r.w - r.x));
 	spinT->setValue(int(r.y));
 	spinB->setValue(int(sh - r.h - r.y));
+	for (int i = 0; i < 9; i++) {
+		double gx = (i % 3) * 0.5, gy = (i / 3) * 0.5;
+		bool on = std::abs(row->ax - gx) < 1e-6 && std::abs(row->ay - gy) < 1e-6;
+		if (auto *b = gridGroup->button(i))
+			b->setChecked(on);
+	}
 	updating = false;
 }
 
@@ -290,16 +319,18 @@ void AlignDialog::OnSpinEdited(int which)
 		return;
 	double ax = row->ax, ay = row->ay;
 	switch (which) {
-	case 0:
-		ax = maxX > 0 ? spinL->value() / maxX : 0.5;
+	case 0: // 左
+	case 4: // X
+		ax = maxX > 0 ? (which == 0 ? spinL : spinX)->value() / maxX : 0.5;
 		break;
-	case 1:
+	case 1: // 右
 		ax = maxX > 0 ? (maxX - spinR->value()) / maxX : 0.5;
 		break;
-	case 2:
-		ay = maxY > 0 ? spinT->value() / maxY : 0.5;
+	case 2: // 上
+	case 5: // Y
+		ay = maxY > 0 ? (which == 2 ? spinT : spinY)->value() / maxY : 0.5;
 		break;
-	case 3:
+	case 3: // 下
 		ay = maxY > 0 ? (maxY - spinB->value()) / maxY : 0.5;
 		break;
 	}

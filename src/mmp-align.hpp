@@ -43,6 +43,8 @@ private:
 	double grabDX = 0, grabDY = 0;
 };
 
+class QButtonGroup;
+
 class AlignDialog : public QDialog {
 	Q_OBJECT
 
@@ -63,6 +65,8 @@ private:
 	bool updating = false;
 
 	AlignPreview *preview = nullptr;
+	QSpinBox *spinX = nullptr, *spinY = nullptr;
 	QSpinBox *spinL = nullptr, *spinR = nullptr, *spinT = nullptr, *spinB = nullptr;
+	QButtonGroup *gridGroup = nullptr;
 	QLabel *info = nullptr;
 };
