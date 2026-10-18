@@ -69,21 +69,20 @@ protected:
 		p.setPen(Qt::white);
 		QString title = QString("%1　%2 × %3").arg(MmpCore::Get()->MonitorRoleName(*me)).arg(me->w).arg(me->h);
 		p.drawText(QRectF(0, hdr * 0.15, all.width(), hdr * 0.8), Qt::AlignCenter, title);
-		// 副標題：螢幕型號與顯示卡
+		// 副標題：螢幕型號、顯示卡各一行
 		QFont sf = font();
-		sf.setPixelSize(int(hdr * 0.3));
+		sf.setPixelSize(int(hdr * 0.24));
 		p.setFont(sf);
 		p.setPen(QColor(200, 200, 200));
-		QString sub = me->name;
-		if (!me->adapter.isEmpty())
-			sub += T("　｜　") + me->adapter;
-		p.drawText(QRectF(0, hdr * 0.95, all.width(), hdr * 0.5), Qt::AlignCenter, sub);
+		p.drawText(QRectF(0, hdr * 0.95, all.width(), hdr * 0.32), Qt::AlignCenter, me->name);
+		p.setPen(QColor(160, 160, 160));
+		p.drawText(QRectF(0, hdr * 1.27, all.width(), hdr * 0.32), Qt::AlignCenter, me->adapter);
 
 		// 縮圖區
 		QRect bound;
 		for (auto &m : mons)
 			bound = bound.united(m.rect);
-		QRectF area = all.adjusted(all.width() * 0.05, hdr * 1.6, -all.width() * 0.05, -all.height() * 0.06);
+		QRectF area = all.adjusted(all.width() * 0.05, hdr * 1.8, -all.width() * 0.05, -all.height() * 0.06);
 		double k = std::min(area.width() / bound.width(), area.height() / bound.height());
 		double ox = area.left() + (area.width() - bound.width() * k) / 2;
 		double oy = area.top() + (area.height() - bound.height() * k) / 2;
@@ -97,27 +96,40 @@ protected:
 			p.setBrush(self ? QColor(215, 55, 55) : QColor(40, 40, 40));
 			p.drawRoundedRect(r, 6, 6);
 
+			// 每一格：名稱、解析度、螢幕型號、顯示卡，各一行，整組垂直置中
 			QString name = MmpCore::Get()->MonitorRoleName(m);
 			QString res = QString("%1 × %2").arg(m.w).arg(m.h);
-			int px = std::max(10, int(std::min(r.height() * 0.2, r.width() * 0.1)));
-			QFont nf = font();
-			nf.setPixelSize(px);
-			nf.setBold(true);
-			QFont rf = nf;
-			rf.setBold(false);
-			rf.setPixelSize(std::max(9, int(px * 0.8)));
-			p.setPen(self ? Qt::white : QColor(200, 200, 200));
-			p.setFont(nf);
-			p.drawText(QRectF(r.left(), r.center().y() - px * 1.15, r.width(), px * 1.2), Qt::AlignCenter, name);
-			p.setPen(self ? QColor(255, 225, 225) : QColor(150, 150, 150));
-			p.setFont(rf);
-			p.drawText(QRectF(r.left(), r.center().y() + px * 0.05, r.width(), px * 1.2), Qt::AlignCenter, res);
-			// 螢幕型號（硬體名稱），太長時以省略號截斷
-			QFont mf = rf;
-			mf.setPixelSize(std::max(8, int(px * 0.65)));
-			p.setFont(mf);
-			QString model = QFontMetrics(mf).elidedText(m.name, Qt::ElideRight, int(r.width() - 8));
-			p.drawText(QRectF(r.left(), r.center().y() + px * 1.15, r.width(), px * 1.0), Qt::AlignCenter, model);
+			int px = std::max(10, int(std::min(r.height() * 0.17, r.width() * 0.09)));
+			struct Line {
+				QString text;
+				double scale;
+				bool bold;
+				QColor selfColor, otherColor;
+			};
+			const Line lines[] = {
+				{name, 1.0, true, Qt::white, QColor(200, 200, 200)},
+				{res, 0.8, false, QColor(255, 225, 225), QColor(150, 150, 150)},
+				{m.name, 0.58, false, QColor(255, 215, 215), QColor(140, 140, 140)},
+				{m.adapter, 0.58, false, QColor(255, 205, 205), QColor(120, 120, 120)},
+			};
+			double total = 0;
+			for (auto &ln : lines)
+				if (!ln.text.isEmpty())
+					total += px * ln.scale * 1.3;
+			double y = r.center().y() - total / 2;
+			for (auto &ln : lines) {
+				if (ln.text.isEmpty())
+					continue;
+				QFont lf = font();
+				lf.setPixelSize(std::max(8, int(px * ln.scale)));
+				lf.setBold(ln.bold);
+				p.setFont(lf);
+				p.setPen(self ? ln.selfColor : ln.otherColor);
+				double lh = px * ln.scale * 1.3;
+				QString t = QFontMetrics(lf).elidedText(ln.text, Qt::ElideRight, int(r.width() - 8));
+				p.drawText(QRectF(r.left(), y, r.width(), lh), Qt::AlignCenter, t);
+				y += lh;
+			}
 		}
 	}
 
