@@ -38,7 +38,7 @@
     },
     "name": "obs-multi-res-splitter",
     "displayName": "Multi-Res Splitter",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "author": "knuckleslee",
     "website": "https://github.com/knuckleslee/obs-multi-res-splitter",
     "email": "knuckleslee@users.noreply.github.com"
