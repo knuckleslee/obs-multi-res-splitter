@@ -47,6 +47,7 @@ struct MonitorInfo {
 	QRect rect;       // 桌面座標（實體像素）
 	QString name;     // 型號名稱
 	QString deviceId; // OBS 顯示器擷取用的 monitor_id
+	QString gdiName;  // Windows 裝置名稱，例如 DISPLAY1
 	QString key;      // 用於比對變動的識別字串
 };
 
@@ -83,6 +84,7 @@ public:
 	const MonitorInfo *MainMonitor() const;
 	std::vector<const MonitorInfo *> MatchRow(const OutputRow &row) const;
 	QString PositionLabel(const MonitorInfo &m) const;
+	QString MonitorRoleName(const MonitorInfo &m) const; // 主螢幕／該列名稱／未設定
 
 	obs_source_t *CaptureSource() const { return capture; }
 

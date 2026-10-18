@@ -9,24 +9,149 @@
 #include <QTableWidget>
 #include <QTimer>
 #include <QVBoxLayout>
+#include <QPainter>
+#include <QPointer>
+#include <QWindow>
+#include <algorithm>
 
-void ShowIdentifyWindow(QScreen *screen, const QString &text)
+#ifdef _WIN32
+#include <Windows.h>
+#endif
+
+class IdentifyMapWindow : public QWidget {
+public:
+	explicit IdentifyMapWindow(QScreen *scr)
+		: QWidget(nullptr, Qt::Window | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool |
+					   Qt::WindowDoesNotAcceptFocus),
+		  screen(scr)
+	{
+		setAttribute(Qt::WA_DeleteOnClose);
+		setAttribute(Qt::WA_ShowWithoutActivating);
+		setAttribute(Qt::WA_TranslucentBackground);
+		setFocusPolicy(Qt::NoFocus);
+		// Windows 排列一變動就重畫；自己這台不見了就關閉
+		conn = QObject::connect(MmpCore::Get(), &MmpCore::MonitorsChanged, this, [this]() {
+			if (!screen || !Self()) {
+				close();
+				return;
+			}
+			Place();
+			update();
+		});
+		QTimer::singleShot(3000, this, &QWidget::close);
+		Place();
+		show();
+	}
+	~IdentifyMapWindow() override { QObject::disconnect(conn); }
+
+protected:
+	void paintEvent(QPaintEvent *) override
+	{
+		const MonitorInfo *me = Self();
+		const auto &mons = MmpCore::Get()->Monitors();
+		if (!me || mons.empty())
+			return;
+		QPainter p(this);
+		p.setRenderHint(QPainter::Antialiasing);
+
+		QRectF all(rect());
+		p.setPen(QPen(QColor(255, 80, 80), 4));
+		p.setBrush(QColor(15, 15, 15, 235));
+		p.drawRoundedRect(all.adjusted(2, 2, -2, -2), 14, 14);
+
+		// 標題：這台的名稱與解析度
+		double hdr = all.height() * 0.16;
+		QFont f = font();
+		f.setPixelSize(int(hdr * 0.55));
+		f.setBold(true);
+		p.setFont(f);
+		p.setPen(Qt::white);
+		QString title = QString("%1　%2 × %3").arg(MmpCore::Get()->MonitorRoleName(*me)).arg(me->w).arg(me->h);
+		p.drawText(QRectF(0, hdr * 0.2, all.width(), hdr), Qt::AlignCenter, title);
+
+		// 縮圖區
+		QRect bound;
+		for (auto &m : mons)
+			bound = bound.united(m.rect);
+		QRectF area = all.adjusted(all.width() * 0.05, hdr * 1.4, -all.width() * 0.05, -all.height() * 0.06);
+		double k = std::min(area.width() / bound.width(), area.height() / bound.height());
+		double ox = area.left() + (area.width() - bound.width() * k) / 2;
+		double oy = area.top() + (area.height() - bound.height() * k) / 2;
+
+		for (auto &m : mons) {
+			bool self = (&m == me);
+			QRectF r(ox + (m.rect.x() - bound.x()) * k, oy + (m.rect.y() - bound.y()) * k, m.rect.width() * k,
+				 m.rect.height() * k);
+			r.adjust(2, 2, -2, -2);
+			p.setPen(QPen(self ? QColor(255, 140, 140) : QColor(120, 120, 120), self ? 4 : 2));
+			p.setBrush(self ? QColor(215, 55, 55) : QColor(40, 40, 40));
+			p.drawRoundedRect(r, 6, 6);
+
+			QString name = MmpCore::Get()->MonitorRoleName(m);
+			QString res = QString("%1 × %2").arg(m.w).arg(m.h);
+			int px = std::max(10, int(std::min(r.height() * 0.2, r.width() * 0.1)));
+			QFont nf = font();
+			nf.setPixelSize(px);
+			nf.setBold(true);
+			QFont rf = nf;
+			rf.setBold(false);
+			rf.setPixelSize(std::max(9, int(px * 0.8)));
+			p.setPen(self ? Qt::white : QColor(200, 200, 200));
+			p.setFont(nf);
+			p.drawText(QRectF(r.left(), r.center().y() - px * 1.15, r.width(), px * 1.2), Qt::AlignCenter, name);
+			p.setPen(self ? QColor(255, 225, 225) : QColor(150, 150, 150));
+			p.setFont(rf);
+			p.drawText(QRectF(r.left(), r.center().y() + px * 0.05, r.width(), px * 1.2), Qt::AlignCenter, res);
+		}
+	}
+
+private:
+	const MonitorInfo *Self() const
+	{
+		for (auto &m : MmpCore::Get()->Monitors())
+			if (m.screen == screen)
+				return &m;
+		return nullptr;
+	}
+
+	// 以實體像素把視窗放在這台螢幕中央，大小約為螢幕的 60%
+	void Place()
+	{
+		const MonitorInfo *me = Self();
+		if (!me)
+			return;
+		QRect mr = me->rect;
+		int w = mr.width() * 6 / 10, h = mr.height() * 6 / 10;
+		QRect r(mr.x() + (mr.width() - w) / 2, mr.y() + (mr.height() - h) / 2, w, h);
+		winId();
+		if (windowHandle())
+			windowHandle()->setScreen(screen);
+		qreal dpr = screen ? screen->devicePixelRatio() : 1.0;
+		setGeometry(QRect(screen->geometry().topLeft() + QPoint(int((r.x() - mr.x()) / dpr), int((r.y() - mr.y()) / dpr)),
+				  QSize(int(w / dpr), int(h / dpr))));
+#ifdef _WIN32
+		SetWindowPos((HWND)winId(), HWND_TOPMOST, r.x(), r.y(), r.width(), r.height(),
+			     SWP_NOACTIVATE | SWP_SHOWWINDOW);
+#endif
+	}
+
+	QPointer<QScreen> screen;
+	QMetaObject::Connection conn;
+};
+
+static QList<QPointer<IdentifyMapWindow>> g_identify;
+
+void ShowIdentifyMap(QScreen *only)
 {
-	auto *w = new QLabel(nullptr, Qt::Window | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool |
-					      Qt::WindowDoesNotAcceptFocus);
-	w->setAttribute(Qt::WA_DeleteOnClose);
-	w->setAttribute(Qt::WA_ShowWithoutActivating);
-	w->setText(text);
-	w->setAlignment(Qt::AlignCenter);
-	QRect g = screen->geometry();
-	int fontPx = qMax(24, g.height() / 9);
-	w->setStyleSheet(QString("QLabel { background: rgba(0,0,0,215); color: #ffffff; border: 6px solid #ff3030;"
-				 " font-size: %1px; font-weight: bold; }")
-				 .arg(fontPx));
-	QSize sz(g.width() * 7 / 10, g.height() * 6 / 10);
-	w->setGeometry(QRect(g.center() - QPoint(sz.width() / 2, sz.height() / 2), sz));
-	w->show();
-	QTimer::singleShot(3000, w, &QWidget::close);
+	for (auto &w : g_identify)
+		if (w)
+			w->close();
+	g_identify.clear();
+	for (auto &m : MmpCore::Get()->Monitors()) {
+		if (!m.screen || (only && m.screen != only))
+			continue;
+		g_identify.append(new IdentifyMapWindow(m.screen));
+	}
 }
 
 DetectDialog::DetectDialog(int forRowId, QWidget *parent) : QDialog(parent), rowId(forRowId)
@@ -113,10 +238,9 @@ void DetectDialog::Populate()
 
 		auto *btn = new QPushButton(T("識別"));
 		QScreen *scr = m.screen;
-		QString text = QString("%1 × %2\n%3").arg(m.w).arg(m.h).arg(m.name);
-		connect(btn, &QPushButton::clicked, this, [scr, text]() {
+		connect(btn, &QPushButton::clicked, this, [scr]() {
 			if (scr)
-				ShowIdentifyWindow(scr, text);
+				ShowIdentifyMap(scr);
 		});
 		table->setCellWidget(r, 4, btn);
 	}

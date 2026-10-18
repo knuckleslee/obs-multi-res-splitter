@@ -7,7 +7,8 @@ class QScreen;
 class QTableWidget;
 class QPushButton;
 
-void ShowIdentifyWindow(QScreen *screen, const QString &text);
+// 在每台螢幕（或只在 only 這台）顯示 Windows 螢幕排列縮圖，並標出自己是哪一台
+void ShowIdentifyMap(QScreen *only);
 
 // 偵測螢幕清單：選擇後回傳解析度
 class DetectDialog : public QDialog {

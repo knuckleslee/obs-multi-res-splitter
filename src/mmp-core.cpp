@@ -256,6 +256,7 @@ void MmpCore::RefreshMonitors()
 		mi.cbSize = sizeof(mi);
 		m.hmon = hmon;
 		if (hmon && GetMonitorInfoW(hmon, (LPMONITORINFO)&mi)) {
+			m.gdiName = QString::fromWCharArray(mi.szDevice).remove(QStringLiteral("\\\\.\\"));
 			m.rect = QRect(mi.rcMonitor.left, mi.rcMonitor.top, mi.rcMonitor.right - mi.rcMonitor.left,
 				       mi.rcMonitor.bottom - mi.rcMonitor.top);
 			DEVMODEW dm = {};
@@ -655,18 +656,26 @@ void MmpCore::OnScreensChanged()
 void MmpCore::IdentifyAll()
 {
 	RefreshMonitors();
-	for (auto &m : monitors)
-		IdentifyOne(m);
+	ShowIdentifyMap(nullptr);
 }
 
 void MmpCore::IdentifyOne(const MonitorInfo &m)
 {
-	if (!m.screen)
-		return;
-	QString text = QString("%1 × %2\n%3").arg(m.w).arg(m.h).arg(m.name);
+	ShowIdentifyMap(m.screen);
+}
+
+QString MmpCore::MonitorRoleName(const MonitorInfo &m) const
+{
 	if (MainMonitor() == &m)
-		text += T("\n（主螢幕）");
-	ShowIdentifyWindow(m.screen, text);
+		return T("主螢幕");
+	for (auto &r : rows) {
+		if (!r.enabled || !ResMatches(m.w, m.h, r.w, r.h))
+			continue;
+		for (auto *x : MatchRow(r))
+			if (x == &m)
+				return r.name.isEmpty() ? T("（未命名）") : r.name;
+	}
+	return T("未設定");
 }
 
 /* ------------------------------ 快速鍵 ------------------------------ */
