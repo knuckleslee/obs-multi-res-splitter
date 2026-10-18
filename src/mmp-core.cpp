@@ -257,6 +257,16 @@ void MmpCore::RefreshMonitors()
 		m.hmon = hmon;
 		if (hmon && GetMonitorInfoW(hmon, (LPMONITORINFO)&mi)) {
 			m.gdiName = QString::fromWCharArray(mi.szDevice).remove(QStringLiteral("\\\\.\\"));
+			// 找出這台螢幕接在哪張顯示卡
+			DISPLAY_DEVICEW ad = {};
+			ad.cb = sizeof(ad);
+			for (DWORD i = 0; EnumDisplayDevicesW(nullptr, i, &ad, 0); i++) {
+				if (wcscmp(ad.DeviceName, mi.szDevice) == 0) {
+					m.adapter = QString::fromWCharArray(ad.DeviceString);
+					break;
+				}
+				ad.cb = sizeof(ad);
+			}
 			m.rect = QRect(mi.rcMonitor.left, mi.rcMonitor.top, mi.rcMonitor.right - mi.rcMonitor.left,
 				       mi.rcMonitor.bottom - mi.rcMonitor.top);
 			DEVMODEW dm = {};

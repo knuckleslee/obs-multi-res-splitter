@@ -10,6 +10,7 @@
 #include <QTimer>
 #include <QVBoxLayout>
 #include <QPainter>
+#include <QFontMetrics>
 #include <QPointer>
 #include <QWindow>
 #include <algorithm>
@@ -67,13 +68,22 @@ protected:
 		p.setFont(f);
 		p.setPen(Qt::white);
 		QString title = QString("%1　%2 × %3").arg(MmpCore::Get()->MonitorRoleName(*me)).arg(me->w).arg(me->h);
-		p.drawText(QRectF(0, hdr * 0.2, all.width(), hdr), Qt::AlignCenter, title);
+		p.drawText(QRectF(0, hdr * 0.15, all.width(), hdr * 0.8), Qt::AlignCenter, title);
+		// 副標題：螢幕型號與顯示卡
+		QFont sf = font();
+		sf.setPixelSize(int(hdr * 0.3));
+		p.setFont(sf);
+		p.setPen(QColor(200, 200, 200));
+		QString sub = me->name;
+		if (!me->adapter.isEmpty())
+			sub += T("　｜　") + me->adapter;
+		p.drawText(QRectF(0, hdr * 0.95, all.width(), hdr * 0.5), Qt::AlignCenter, sub);
 
 		// 縮圖區
 		QRect bound;
 		for (auto &m : mons)
 			bound = bound.united(m.rect);
-		QRectF area = all.adjusted(all.width() * 0.05, hdr * 1.4, -all.width() * 0.05, -all.height() * 0.06);
+		QRectF area = all.adjusted(all.width() * 0.05, hdr * 1.6, -all.width() * 0.05, -all.height() * 0.06);
 		double k = std::min(area.width() / bound.width(), area.height() / bound.height());
 		double ox = area.left() + (area.width() - bound.width() * k) / 2;
 		double oy = area.top() + (area.height() - bound.height() * k) / 2;
@@ -102,6 +112,12 @@ protected:
 			p.setPen(self ? QColor(255, 225, 225) : QColor(150, 150, 150));
 			p.setFont(rf);
 			p.drawText(QRectF(r.left(), r.center().y() + px * 0.05, r.width(), px * 1.2), Qt::AlignCenter, res);
+			// 螢幕型號（硬體名稱），太長時以省略號截斷
+			QFont mf = rf;
+			mf.setPixelSize(std::max(8, int(px * 0.65)));
+			p.setFont(mf);
+			QString model = QFontMetrics(mf).elidedText(m.name, Qt::ElideRight, int(r.width() - 8));
+			p.drawText(QRectF(r.left(), r.center().y() + px * 1.15, r.width(), px * 1.0), Qt::AlignCenter, model);
 		}
 	}
 
